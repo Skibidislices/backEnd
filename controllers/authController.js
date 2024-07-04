@@ -7,7 +7,8 @@ import {
   createUser,
   verifyUser,
   setUserResetPasswordToken,
-  resetUserPassword
+  resetUserPassword,
+  findUserById
 } from '../models/User.js';
 import transporter from '../config/nodemailer.js';
 
@@ -144,5 +145,18 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');
+  }
+};
+
+export const getUserInfo = async (req, res) => {
+  try {
+    const user = await findUserById(req.user.id);
+    if (!user) {
+      return res.status(400).json({ msg: 'User does not exist' });
+    }
+    res.json({ email: user.email });
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+    res.status(500).send('Error fetching user info');
   }
 };

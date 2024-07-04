@@ -1,32 +1,25 @@
 import fs from 'fs';
 import path from 'path';
-import xlsx from 'xlsx';
 import { fileURLToPath } from 'url';
+import xlsx from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.join(__dirname, '../uploads');
+const DATA_FILE = path.join(UPLOADS_DIR, '/latest.json');
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR);
 }
 
-export const saveExcelFile = (file) => {
-  const filePath = path.join(UPLOADS_DIR, 'latest.xlsx');
-  fs.writeFileSync(filePath, file.buffer);
-  return filePath;
+export const saveJsonData = (jsonData) => {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(jsonData));
 };
 
-export const loadExcelFile = () => {
-  const filePath = path.join(UPLOADS_DIR, 'latest.xlsx');
-  if (!fs.existsSync(filePath)) {
-    throw new Error('No uploaded file found.');
+export const loadJsonData = () => {
+  if (!fs.existsSync(DATA_FILE)) {
+    throw new Error('No uploaded data found.');
   }
-  const workbook = xlsx.readFile(filePath);
-  const jsonResult = {};
-  workbook.SheetNames.forEach(sheetName => {
-    const worksheet = workbook.Sheets[sheetName];
-    jsonResult[sheetName] = xlsx.utils.sheet_to_json(worksheet);
-  });
-  return jsonResult;
+  const data = fs.readFileSync(DATA_FILE);
+  return JSON.parse(data);
 };
