@@ -109,7 +109,7 @@ export const resetPasswordRequest = async (req, res) => {
 
     await setUserResetPasswordToken(email, resetToken, resetTokenExpires);
 
-    const resetUrl = `http://localhost:5173/reset-password?token=${resetToken}`;
+    const resetUrl = `http://localhost:5173/reset-token?token=${resetToken}`;
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
