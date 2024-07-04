@@ -6,9 +6,12 @@ import {
   resetPasswordRequest,
   resetPassword,
 } from '../controllers/authController.js';
-import { responseExample, updateExample } from '../controllers/exampleController.js';
-import { checkName } from '../middleware/exampleMiddleware.js';
 import authMiddleware from '../middleware/authMiddleware.js';
+import multer from 'multer';
+import xlsx from 'xlsx';
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const router = express.Router();
 
@@ -18,10 +21,20 @@ router.get('/auth/verify/:token', verifyEmail);
 router.post('/auth/reset-password', resetPasswordRequest);
 router.post('/auth/reset-password/:token', resetPassword);
 
-router.get('/', (req, res, next) => {
-  res.json('hi');
+
+// File upload route
+router.post('/upload-excel', authMiddleware, upload.single('file'), (req, res) => {
+  try {
+    const file = req.file;
+    const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const json = xlsx.utils.sheet_to_json(worksheet);
+    res.json(json);
+  } catch (error) {
+    console.error('Error processing file:', error);
+    res.status(500).send('Error processing file');
+  }
 });
-router.get('/example', authMiddleware, checkName, responseExample);
-router.post('/example', authMiddleware, checkName, updateExample);
 
 export default router;
