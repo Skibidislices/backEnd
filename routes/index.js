@@ -5,13 +5,20 @@ import {
   verifyEmail,
   resetPasswordRequest,
   resetPassword,
-  getUserInfo, 
+  getUserInfo,
 } from '../controllers/authController.js';
-import { saveJsonData, loadJsonData } from '../controllers/fileController.js';
+import {
+  clearPreviousData,
+  insertStudents,
+  insertTeachers,
+  insertCourses,
+  insertTimetable,
+  fetchExcelData,
+} from '../controllers/excelController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import multer from 'multer';
 import xlsx from 'xlsx';
-import { findUserByEmail } from '../models/User.js';
+import db from '../config/db.js';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -26,7 +33,7 @@ router.post('/auth/reset-password/:token', resetPassword);
 
 router.get('/auth/me', authMiddleware, getUserInfo);
 
-router.post('/upload-excel', authMiddleware, upload.single('file'), (req, res) => {
+router.post('/upload-excel', authMiddleware, upload.single('file'), async (req, res) => {
   try {
     const file = req.file;
     const workbook = xlsx.read(file.buffer, { type: 'buffer' });
@@ -37,43 +44,50 @@ router.post('/upload-excel', authMiddleware, upload.single('file'), (req, res) =
       jsonResult[sheetName] = xlsx.utils.sheet_to_json(worksheet);
     });
 
-    saveJsonData(jsonResult);
-    res.json(jsonResult);
+    await clearPreviousData();
+    await insertStudents(jsonResult.students);
+    await insertTeachers(jsonResult.teachers);
+    await insertCourses(jsonResult.courses);
+    await insertTimetable(jsonResult.timetable);
+
+    res.json(await fetchExcelData());
   } catch (error) {
     console.error('Error processing file:', error);
     res.status(500).send('Error processing file');
   }
 });
 
-router.get('/load-latest-excel', authMiddleware, (req, res) => {
+router.get('/load-latest-excel', authMiddleware, async (req, res) => {
   try {
-    const jsonResult = loadJsonData();
-    res.json(jsonResult);
+    res.json(await fetchExcelData());
   } catch (error) {
-    console.error('Error loading file:', error);
-    res.status(500).send('Error loading file');
+    console.error('Error loading data:', error);
+    res.status(500).send('Error loading data');
   }
 });
 
 router.get('/user-timetable', authMiddleware, async (req, res) => {
   try {
-    console.log(req.params);
     const userEmail = req.query.email;
-    const data = loadJsonData();
+    const [userRows] = await db.execute('SELECT * FROM users WHERE email = ?', [userEmail]);
+    const user = userRows[0];
+
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
     let userGroup = "teacher";
-    const studentInfos = data.students.filter(student => {return student["email"] === userEmail});
-    if(studentInfos.length > 0) userGroup = studentInfos[0]["group name"];
-    const userTimetable = data.timetable.filter(activity => {
-      const teacherEmails = activity["teacher email"].split(',').map(email => email.trim());
-      if (teacherEmails.includes(userEmail)) {
-        return true;
-      }
-      if (activity["student group"] === userGroup) {
-        return true;
-      }
-      return false;
-    });
-    res.json(userTimetable);
+    const [studentRows] = await db.execute('SELECT * FROM students WHERE email = ?', [userEmail]);
+    if (studentRows.length > 0) {
+      userGroup = studentRows[0].group;
+    }
+
+    const [timetableRows] = await db.execute(
+      'SELECT * FROM timetable WHERE teacher_id = (SELECT id FROM teachers WHERE email = ?) OR `group` = ?',
+      [userEmail, userGroup]
+    );
+
+    res.json(timetableRows);
   } catch (error) {
     console.error('Error fetching user timetable:', error);
     res.status(500).send('Error fetching user timetable');
