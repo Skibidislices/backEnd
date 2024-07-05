@@ -4,13 +4,7 @@ dotenv.config({ path: 'variables.env' });
 
 const { MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE } = process.env;
 
-const createDatabaseAndTable = async () => {
-  const connection = await mysql.createConnection({
-    host: MYSQL_HOST,
-    user: MYSQL_USER,
-    password: MYSQL_PASSWORD,
-  });
-
+const createDatabaseAndTable = async (connection) => {
   await connection.query(`CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;`);
   await connection.query(`USE \`${MYSQL_DATABASE}\`;`);
   await connection.query(`
@@ -92,11 +86,31 @@ const createDatabaseAndTable = async () => {
       FOREIGN KEY (\`course_id\`) REFERENCES \`courses\`(\`id\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
   `);
-  await connection.end();
+};
+
+const waitAndCreateDb = async (retries = 10, delay = 5000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const connection = await mysql.createConnection({
+        host: MYSQL_HOST,
+        user: MYSQL_USER,
+        password: MYSQL_PASSWORD,
+      });
+      await createDatabaseAndTable(connection);
+      await connection.end();
+      return;
+    } catch (err) {
+      console.error(`Attempt ${i + 1} failed: ${err.message}`);
+      if (i === retries - 1) {
+        throw err;
+      }
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
 };
 
 const connectDatabase = async () => {
-  await createDatabaseAndTable();
+  await waitAndCreateDb();
 
   const pool = mysql.createPool({
     host: MYSQL_HOST,
