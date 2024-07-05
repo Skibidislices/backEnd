@@ -45,6 +45,7 @@ router.post('/upload-excel', authMiddleware, upload.single('file'), async (req, 
     });
 
     await clearPreviousData();
+
     await insertStudents(jsonResult.students);
     await insertTeachers(jsonResult.teachers);
     await insertCourses(jsonResult.courses);
